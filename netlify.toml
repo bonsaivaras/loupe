@@ -1,0 +1,15 @@
+# Netlify / Cloudflare Pages both read this.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[headers]]
+  for = "/assets/*.wasm"
+  [headers.values]
+    Content-Type = "application/wasm"
+
+# Long-lived caching is safe: every asset filename carries a content hash.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
