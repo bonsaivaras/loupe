@@ -131,6 +131,18 @@ class DecoderPool {
   }
 
   private async attempt(slot: Slot, task: Task): Promise<RawDecodeResult> {
+    return this.attemptOnce(slot, task).catch(async (error: unknown) => {
+      // A fresh instance that fails because its worker or wasm never loaded is
+      // a transient hosting problem, not a verdict on the file. Locally the
+      // wasm comes off disk and this never happens; over a network it can, and
+      // without a retry one dropped request permanently fails that photo.
+      if (!isTransientLoadFailure(error)) throw error
+      this.recycle(slot)
+      return this.attemptOnce(slot, task)
+    })
+  }
+
+  private async attemptOnce(slot: Slot, task: Task): Promise<RawDecodeResult> {
     if (!slot.raw || !this.reuseInstances) {
       if (slot.raw) this.recycle(slot)
       slot.raw = new LibRaw()
@@ -159,6 +171,18 @@ class DecoderPool {
     for (const slot of this.slots) this.recycle(slot)
     this.slots = []
   }
+}
+
+/**
+ * Tells "the decoder ran and rejected this file" apart from "the decoder never
+ * started". Only the latter is worth retrying — retrying a genuinely corrupt
+ * file just decodes it twice.
+ */
+function isTransientLoadFailure(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return /fetch|network|failed to load|importScripts|WebAssembly|wasm|compile|Worker|dynamically imported/i.test(
+    message,
+  )
 }
 
 export const decoderPool = new DecoderPool()

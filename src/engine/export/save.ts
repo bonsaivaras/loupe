@@ -75,21 +75,55 @@ class SingleFileSaveTarget implements SaveTarget {
   async finish(): Promise<void> {}
 }
 
+export type Destination = 'folder' | 'download'
+
+/** Thrown when the user deliberately dismisses the folder picker. */
+export class SaveCancelledError extends Error {
+  constructor() {
+    super('Save cancelled')
+    this.name = 'SaveCancelledError'
+  }
+}
+
 export function directoryPickerAvailable(): boolean {
   return typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function'
 }
 
+function downloadTarget(fileCount: number, archiveName: string): SaveTarget {
+  return fileCount > 1 ? new ZipSaveTarget(archiveName) : new SingleFileSaveTarget()
+}
+
 /**
- * Chromium: ask once for a destination folder. Elsewhere: a single download,
- * or one zip archive for a batch.
+ * Writes into a folder the user picks, or falls back to ordinary downloads.
+ *
+ * Chrome refuses write access to a long list of directories — anything it
+ * considers to hold system files, which includes the home folder itself and
+ * plenty of ordinary-looking places. That refusal must never dead-end the
+ * export: downloading always works, so any failure other than a deliberate
+ * cancel falls back to it.
  */
 export async function chooseSaveTarget(
   fileCount: number,
   archiveName: string,
+  destination: Destination = 'folder',
+  onFallback?: (reason: string) => void,
 ): Promise<SaveTarget> {
-  if (directoryPickerAvailable()) {
+  if (destination === 'download' || !directoryPickerAvailable()) {
+    return downloadTarget(fileCount, archiveName)
+  }
+
+  try {
     const dir = await window.showDirectoryPicker?.({ id: 'll-export', mode: 'readwrite' })
     if (dir) return new DirectorySaveTarget(dir)
+    return downloadTarget(fileCount, archiveName)
+  } catch (error) {
+    const name = error instanceof Error ? error.name : ''
+    // AbortError is the user closing the dialog; anything else is the browser
+    // saying no, and downloading is a better answer than failing.
+    if (name === 'AbortError') throw new SaveCancelledError()
+    onFallback?.(
+      error instanceof Error && error.message ? error.message : 'That folder cannot be written to',
+    )
+    return downloadTarget(fileCount, archiveName)
   }
-  return fileCount > 1 ? new ZipSaveTarget(archiveName) : new SingleFileSaveTarget()
 }

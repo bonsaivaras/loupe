@@ -4,13 +4,22 @@
     {
       "name": "loupe",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 5273
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 5173
     },
     {
       "name": "loupe-prod",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "preview", "--port", "5274", "--strictPort"],
+      "runtimeArgs": [
+        "vite",
+        "preview",
+        "--port",
+        "5274",
+        "--strictPort"
+      ],
       "port": 5274
     }
   ]

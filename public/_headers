@@ -1,0 +1,9 @@
+# Netlify reads this from the publish directory, which means it applies to
+# drag-and-drop and CLI deploys too — netlify.toml headers only apply when the
+# site is built from a connected repo.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*.wasm
+  Content-Type: application/wasm
+  Cache-Control: public, max-age=31536000, immutable

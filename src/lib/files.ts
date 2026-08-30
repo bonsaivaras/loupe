@@ -21,7 +21,19 @@ export function baseNameOf(filename: string): string {
   return dot <= 0 ? filename : filename.slice(0, dot)
 }
 
+/**
+ * macOS writes an AppleDouble sidecar next to every file on a FAT/exFAT volume —
+ * which is what a camera card is — to hold the resource fork and extended
+ * attributes. It carries the real photo's name and extension but holds about
+ * 4 KB of metadata, so it passes an extension check and then fails to decode
+ * with a message that blames the photo. Never a real image; always skipped.
+ */
+export function isAppleDoubleSidecar(filename: string): boolean {
+  return filename.startsWith('._')
+}
+
 export function isSupported(filename: string): boolean {
+  if (isAppleDoubleSidecar(filename)) return false
   const e = extOf(filename)
   return RAW_SET.has(e) || BITMAP_SET.has(e)
 }
