@@ -74,6 +74,13 @@ npm run build      # -> dist/
   bundle needs that prefix compiled in.
 - **Anywhere else** — upload `dist/` and make sure `.wasm` is served as `application/wasm`.
 
+### Saving exports
+
+**Save to** in the export dialog picks between writing straight into a folder and an
+ordinary download. Chrome refuses write access to a long list of directories it treats as
+holding system files — the home folder among them — so a refusal falls back to downloading
+rather than failing the export. Downloading always works.
+
 No environment variables, no secrets, no backend. Nothing to pay for at any traffic level,
 because every byte of work happens in the visitor's browser.
 

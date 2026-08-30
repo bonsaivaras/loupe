@@ -15,7 +15,8 @@ import {
   type ResizeOption,
 } from './encode'
 import { buildPdf, type PdfPage } from './pdf'
-import { chooseSaveTarget } from './save'
+import { toast } from 'sonner'
+import { chooseSaveTarget, SaveCancelledError, type Destination } from './save'
 import type { Photo } from '@/types'
 
 export interface ExportSettings {
@@ -23,6 +24,7 @@ export interface ExportSettings {
   quality: number
   resize: ResizeOption
   pattern: string
+  destination: Destination
 }
 
 export interface ExportProgressUpdate {
@@ -82,7 +84,15 @@ export async function runExport(
   const mime = isPdf ? FORMAT_MIME.jpeg : FORMAT_MIME[settings.format as 'jpeg' | 'png' | 'webp']
   const quality = isPdf ? 0.92 : settings.quality
 
-  const target = await chooseSaveTarget(isPdf ? 1 : photos.length, `${projectName}.zip`)
+  const target = await chooseSaveTarget(
+    isPdf ? 1 : photos.length,
+    `${projectName}.zip`,
+    settings.destination,
+    (reason) =>
+      toast.warning('Saving to that folder was refused — downloading instead', {
+        description: reason,
+      }),
+  )
   const taken = new Set<string>()
   const pdfPages: PdfPage[] = []
   let written = 0
@@ -163,3 +173,5 @@ export async function runExport(
   })
   return { written, failed, cancelled }
 }
+
+export { SaveCancelledError }

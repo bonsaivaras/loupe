@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { getActiveRenderer } from '@/engine/gl/activeRenderer'
 import {
   FORMAT_EXT,
@@ -23,7 +24,11 @@ import {
   type ResizeOption,
 } from '@/engine/export/encode'
 import { cancelExport, runExport, type ExportProgressUpdate } from '@/engine/export/runExport'
-import { directoryPickerAvailable } from '@/engine/export/save'
+import {
+  directoryPickerAvailable,
+  SaveCancelledError,
+  type Destination,
+} from '@/engine/export/save'
 import { pickedIds, useProjectStore } from '@/store/projectStore'
 import { useUiStore } from '@/store/uiStore'
 
@@ -60,6 +65,11 @@ export function ExportDialog() {
   const [quality, setQuality] = useState(92)
   const [resize, setResize] = useState<ResizeOption>('original')
   const [pattern, setPattern] = useState('{name}_edited')
+  // Chrome refuses write access to plenty of ordinary folders, so downloading
+  // has to be reachable without discovering that the hard way.
+  const [destination, setDestination] = useState<Destination>(
+    directoryPickerAvailable() ? 'folder' : 'download',
+  )
   const [progress, setProgress] = useState<ExportProgressUpdate | null>(null)
 
   const running = progress !== null && progress.phase !== 'done'
@@ -85,7 +95,7 @@ export function ExportDialog() {
     try {
       const result = await runExport(
         targets,
-        { format, quality: quality / 100, resize, pattern },
+        { format, quality: quality / 100, resize, pattern, destination },
         renderer,
         projectName,
         setProgress,
@@ -106,8 +116,14 @@ export function ExportDialog() {
       setOpen(false)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      // An aborted directory picker is a user decision, not a failure.
-      if (!/abort/i.test(message)) toast.error('Export failed', { description: message })
+      // Dismissing the folder picker is a user decision, not a failure.
+      if (error instanceof SaveCancelledError || /abort/i.test(message)) {
+        toast.info('Export cancelled', {
+          description: 'Set Save to "Download" if the folder picker keeps refusing.',
+        })
+      } else {
+        toast.error('Export failed', { description: message })
+      }
     } finally {
       setProgress(null)
       // The renderer is holding nothing now; rebuild the preview texture.
@@ -211,6 +227,32 @@ export function ExportDialog() {
                 </Select>
               </div>
             </div>
+
+            {directoryPickerAvailable() && (
+              <div className="grid gap-2">
+                <Label>Save to</Label>
+                <ToggleGroup
+                  value={[destination]}
+                  onValueChange={(value) => {
+                    const next = (value as string[])[0]
+                    if (next) setDestination(next as Destination)
+                  }}
+                  variant="outline"
+                  spacing={0}
+                  className="w-full *:flex-1"
+                >
+                  <ToggleGroupItem value="folder">Choose a folder</ToggleGroupItem>
+                  <ToggleGroupItem value="download">Download</ToggleGroupItem>
+                </ToggleGroup>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  {destination === 'folder'
+                    ? 'Writes straight into a folder you pick. Chrome blocks some folders — including your home folder — as containing system files; a subfolder like Pictures/Export works.'
+                    : targets.length > 1
+                      ? 'Saves one zip to your Downloads folder. Always works.'
+                      : 'Saves to your Downloads folder. Always works.'}
+                </p>
+              </div>
+            )}
 
             {(format === 'jpeg' || format === 'webp') && (
               <div className="grid gap-2">
